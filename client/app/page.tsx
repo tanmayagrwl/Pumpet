@@ -1,13 +1,12 @@
-import Explaination from "@/components/home/explaination";
 import Features from "@/components/home/features";
 import { Landing } from "@/components/home/landing";
-import Image from "next/image";
-
+import CustomerTestimonials from "@/components/home/testimonials";
 export default function Home() {
   return (
     <>
       <Landing />
       <Features/>
+      <CustomerTestimonials />
     </>
   );
 }
