@@ -28,7 +28,7 @@ function Brand() {
           Looking forward to collaborate with us?
         </p>
       </div>
-      <Button className="bg-[#FFC530] text-black hover:bg-[#e4ae23]" onClick={()=>setModalShow(true)}>Let's work together!</Button>
+      <Button className="bg-primary/80 text-black hover:bg-primary" onClick={()=>setModalShow(true)}>Let's work together!</Button>
     </div>
   ); 
 }

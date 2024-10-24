@@ -1,7 +1,7 @@
 "use client";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import React, { useState } from "react";
+import React, { use, useState } from "react";
 import {
   Command,
   CommandEmpty,
@@ -25,6 +25,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "./ui/button";
+import { Label } from "./ui/label";
+import { Switch } from "./ui/switch";
 
 const organization = [
   {
@@ -51,6 +53,7 @@ const organization = [
 function SiteHeader() {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
+  const [admin, setAdmin] =  useState<boolean>(false)
   return (
     <div className="border border-b-gray-300 py-6 flex justify-between px-4">
       <div className="flex gap-x-4">
@@ -109,8 +112,8 @@ function SiteHeader() {
       {/* 2nd half */}
 
       <div className="flex gap-x-8 items-center">
-        <div>Analytics</div>
-        <div>Users</div>
+        {admin && <div>Analytics</div>}
+        {admin && <div>Users</div>}
         <div>Marketplace</div>
         <div>Activity</div>
         <div>Leaderboard</div>
@@ -125,10 +128,20 @@ function SiteHeader() {
             <DropdownMenuContent>
               <DropdownMenuLabel>My Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="">Profile</DropdownMenuItem>
-              <DropdownMenuItem>Billing</DropdownMenuItem>
-              <DropdownMenuItem>Team</DropdownMenuItem>
-              <DropdownMenuItem>Subscription</DropdownMenuItem>
+              <DropdownMenuItem className="bg-primary/50">
+                50 Pump Coins
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <Switch 
+                checked={admin}
+                onCheckedChange={()=>setAdmin(!admin)}
+                />
+                <Label>Admin</Label>
+              </DropdownMenuItem>
+              <DropdownMenuItem>Log Out</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

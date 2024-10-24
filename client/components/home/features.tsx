@@ -11,42 +11,36 @@ const second = ["F", "E", "A", "T", "U", "R", "E", "S"]
 const data = [
   {
     path: <IoMdGift className="w-5 h-5 m-1" />,
-    color: "#FFC530",
     title: "Rewards for Ticket Updates",
     description:
       "Motivate your team by turning ticket updates into points that can be redeemed for rewards, driving consistent progress.",
   },
   {
     path: <SiSimpleanalytics className="w-3 h-3 m-1" />,
-    color: "#FFC530",
     title: "Real-Time Analytics",
     description:
       "Get live insights into team performance and ticket flow, allowing managers to make data-driven decisions on the go.",
   },
   {
     path: <GoGear className="w-5 h-5 m-1" />,
-    color: "#FFC530",
     title: "Efficiency Dashboards",
     description:
       "Visualize team productivity with customizable dashboards, highlighting key metrics like ticket resolution time and employee contributions.",
   },
   {
     path: <MdOutlineLeaderboard className="w-5 h-5 m-1"  />,
-    color: "#FFC530",
     title: "Team Leaderboards",
     description:
       "Foster healthy competition with leaderboards that showcase top performers based on ticket updates and completion rates.",
   },
   {
     path: <CiMoneyBill className="w-5 h-5 m-1"  />,
-    color: "#FFC530",
     title: "Customizable Reward System",
     description:
       "Effortlessly schedule, assign, and comment on tasks for precise workload organization and collaboration. Stay on top of project timelines with ease and efficiency.",
   },
   {
     path: <GrDocumentPerformance className="w-5 h-5 m-1"  />,
-    color: "#FFC530",
     title: "Performance Trends",
     description:
       "Identify long-term patterns with detailed reports on ticket activity and team efficiency, helping managers spot areas for improvement.",
@@ -55,7 +49,7 @@ const data = [
 function Features() {
   return (
     <section id="features" className="py-24">
-      <div className=" flex gap-x-6 2xl:gap-x-12 w-full justify-center text-[#E8B32C] text-xs md:text-base 2xl:text-lg ">
+      <div className=" flex gap-x-6 2xl:gap-x-12 w-full justify-center text-primary text-xs md:text-base 2xl:text-lg ">
         <div className="flex justify-center gap-x-3 2xl:gap-x-">
           {first.map((letter, index) => {
             return (
@@ -99,8 +93,7 @@ function Features() {
             >
               {/* <Image src={item.path} alt={item.title} width={50} height={50} /> */}
               <div
-                className={`p-2 rounded-full flex items-center justify-center`}
-                style={{ backgroundColor: item.color }}
+                className={`p-2 rounded-full flex items-center justify-center bg-primary/50`}
               >
                 {item.path}
               </div>
