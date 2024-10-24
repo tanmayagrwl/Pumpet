@@ -1,0 +1,17 @@
+meta {
+  name: Jira Login init
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/auth/jira/signup
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "domainName": "pumpet"
+  }
+}

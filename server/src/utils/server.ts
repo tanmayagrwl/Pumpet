@@ -6,13 +6,19 @@ import appRouter from "../routes";
 import { errorHandler } from "./errors";
 
 export async function BootstrapServer(app: Hono) {
-  app.use(cors());
-  app.use(csrf());
-  app.use(secureHeaders());
+	app.use(cors());
+	app.use(csrf());
+	app.use(secureHeaders());
+	app.notFound((c: Context) => {
+		return c.json({
+			success: false,
+			message: "Route Not Found",
+		});
+	});
 
-  app.route("/api/v1", appRouter);
+	app.route("/api/v1", appRouter);
 
-  app.onError((err: Error, c: Context) => {
-    return errorHandler(err, c);
-  });
+	app.onError((err: Error, c: Context) => {
+		return errorHandler(err, c);
+	});
 }
