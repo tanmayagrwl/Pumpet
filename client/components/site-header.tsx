@@ -114,9 +114,8 @@ function SiteHeader() {
 
       <div className="flex gap-x-8 items-center">
         {admin && <div>Analytics</div>}
-        {admin && <div>Users</div>}
-        <div>Marketplace</div>
-        <div>Activity</div>
+        <Link href={"/dashboard/marketplace"}>Marketplace</Link>
+        <Link href={"/dashboard/activity"}>Activity</Link>
         <Link href={"/dashboard/leaderboard"}>Leaderboard</Link>
 
 
