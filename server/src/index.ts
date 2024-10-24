@@ -4,17 +4,17 @@ import CONFIG from "./utils/env";
 import { BootstrapServer } from "./utils/server";
 
 function main() {
-  const app = new Hono();
+	const app = new Hono();
 
-  BootstrapServer(app);
+	BootstrapServer(app);
 
-  const port = Number(CONFIG.PORT);
-  console.log(`Server is running on port ${port}`);
+	const port = Number(CONFIG.PORT);
+	console.log(`Server is running on port ${port}`);
 
-  serve({
-    fetch: app.fetch,
-    port,
-  });
+	serve({
+		fetch: app.fetch,
+		port,
+	});
 }
 
 main();

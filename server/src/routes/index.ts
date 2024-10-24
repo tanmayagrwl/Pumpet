@@ -4,7 +4,7 @@ import authRouter from "./auth.routes";
 const appRouter = new Hono();
 
 appRouter.get("/", (c) => {
-  return c.text("Hello World!");
+	return c.text("Hello World!");
 });
 
 appRouter.route("/auth", authRouter);
