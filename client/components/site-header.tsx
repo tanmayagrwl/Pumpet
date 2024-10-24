@@ -27,6 +27,7 @@ import {
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { Switch } from "./ui/switch";
+import Link from "next/link";
 
 const organization = [
   {
@@ -116,8 +117,11 @@ function SiteHeader() {
         {admin && <div>Users</div>}
         <div>Marketplace</div>
         <div>Activity</div>
-        <div>Leaderboard</div>
-        <div>
+        <Link href={"/dashboard/leaderboard"}>Leaderboard</Link>
+
+
+        <div className="flex items-center gap-x-3">
+        <div className="font-bold">Tanmay Agrawal</div>
           <DropdownMenu>
             <DropdownMenuTrigger>
               <Avatar>
