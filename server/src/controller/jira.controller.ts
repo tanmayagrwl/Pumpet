@@ -1,5 +1,7 @@
 import type { Context } from "hono";
 import { setCookie } from "hono/cookie";
+import { jwtDecode } from "jwt-decode";
+import { cache } from "../db/cache";
 import db from "../db/db";
 import type { userType } from "../types/user";
 import ENV from "../utils/env";
@@ -24,8 +26,6 @@ export const handleJiraSignup = async (c: Context) => {
 	const redirectParam = c.req.query("r");
 	const scopes = config.scope.join(" ");
 	const authUrl = `https://auth.atlassian.com/authorize?audience=api.atlassian.com&client_id=${config.clientId}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(config.redirectUri)}&response_type=code&prompt=consent&state=${redirectParam === "1" ? "redirect" : ""}`;
-
-	console.log(authUrl);
 
 	return c.json({
 		success: true,
@@ -141,37 +141,139 @@ export const getJiraUserProjects = async (c: Context) => {
 		});
 	}
 
-	const response = await fetch(
-		"https://api.atlassian.com/ex/jira/rest/api/latest/project",
-		{
-			method: "GET",
-			headers: {
-				Authorization: token,
-				Accept: "application/json",
-			},
-		},
-	);
+	const decodedToken = jwtDecode(token.replace("Bearer ", ""));
+	const userId = decodedToken.sub;
 
-	console.log(response);
+	const cacheKey = `jira:projects:${userId}`;
+	const cachedData = cache.get(cacheKey);
 
-	if (!response.ok) {
-		throw new BackendError("INTERNAL_ERROR", {
-			details: "Failed to fetch Jira projects",
+	if (cachedData) {
+		return c.json({
+			success: true,
+			message: "Successfully retrieved Jira projects from cache",
+			data: cachedData,
+			source: "cache",
 		});
 	}
 
-	const data = await response.json();
+	try {
+		const cloudResponse = await fetch(
+			"https://api.atlassian.com/oauth/token/accessible-resources",
+			{
+				method: "GET",
+				headers: {
+					Authorization: token,
+					Accept: "application/json",
+				},
+			},
+		);
 
-	return c.json({
-		success: true,
-		message: "Successfully retrieved Jira projects",
-		data,
-	});
+		if (!cloudResponse.ok) {
+			throw new BackendError("INTERNAL_ERROR", {
+				details: "Failed to fetch Jira cloud resources",
+			});
+		}
+
+		const cloudInstances = await cloudResponse.json();
+
+		if (!cloudInstances.length) {
+			throw new BackendError("NOT_FOUND", {
+				details: "No Jira cloud resources found",
+			});
+		}
+
+		const allSitesProjects = await Promise.all(
+			cloudInstances.map(async (instance) => {
+				try {
+					const projectsResponse = await fetch(
+						`https://api.atlassian.com/ex/jira/${instance.id}/rest/api/3/project`,
+						{
+							method: "GET",
+							headers: {
+								Authorization: token,
+								Accept: "application/json",
+							},
+						},
+					);
+
+					if (!projectsResponse.ok) {
+						console.error(
+							`Failed to fetch projects for cloud ID ${instance.id}`,
+						);
+						return {
+							cloudId: instance.id,
+							cloudName: instance.name,
+							cloudUrl: instance.url,
+							projects: [],
+							error: `Failed to fetch projects: ${projectsResponse.statusText}`,
+						};
+					}
+
+					const projects = await projectsResponse.json();
+					return {
+						cloudId: instance.id,
+						cloudName: instance.name,
+						cloudUrl: instance.url,
+						projects,
+						error: null,
+					};
+				} catch (error) {
+					console.error(
+						`Error fetching projects for cloud ID ${instance.id}:`,
+						error,
+					);
+					return {
+						cloudId: instance.id,
+						cloudName: instance.name,
+						cloudUrl: instance.url,
+						projects: [],
+						error: error.message,
+					};
+				}
+			}),
+		);
+
+		const responseData = {
+			sites: allSitesProjects,
+			totalSites: cloudInstances.length,
+			totalProjects: allSitesProjects.reduce(
+				(acc, site) => acc + site.projects.length,
+				0,
+			),
+			lastUpdated: new Date().toISOString(),
+		};
+
+		cache.set(cacheKey, responseData, 300);
+
+		return c.json({
+			success: true,
+			message: "Successfully retrieved Jira projects",
+			data: responseData,
+			source: "api",
+		});
+	} catch (error) {
+		const staleCache = cache.get(cacheKey);
+		if (staleCache) {
+			return c.json({
+				success: true,
+				message: "Retrieved Jira projects from stale cache due to API error",
+				data: staleCache,
+				source: "stale_cache",
+				error: error.message,
+			});
+		}
+
+		throw error;
+	}
 };
 
-export const getJiraProjectByID = async (c: Context) => {
+export const invalidateProjectsCache = (userId: string) => {
+	const cacheKey = `jira:projects:${userId}`;
+	cache.del(cacheKey);
+};
+
+export const forceRefreshJiraProjects = async (c: Context) => {
 	const token = c.req.header("Authorization");
-	const projectId = c.req.param("id");
 
 	if (!token) {
 		throw new BackendError("UNAUTHORIZED", {
@@ -179,36 +281,44 @@ export const getJiraProjectByID = async (c: Context) => {
 		});
 	}
 
-	if (!projectId) {
-		throw new BackendError("BAD_REQUEST", {
-			details: "Missing project ID",
+	const decodedToken = jwtDecode(token.replace("Bearer ", ""));
+	const userId = decodedToken.sub;
+
+	if (!userId) {
+		throw new BackendError("UNAUTHORIZED", {
+			details: "Invalid user ID",
 		});
 	}
 
-	const response = await fetch(
-		`https://api.atlassian.com/ex/jira/rest/api/latest/project/${projectId}`,
-		{
-			method: "GET",
-			headers: {
-				Authorization: token,
-				Accept: "application/json",
-			},
-		},
-	);
+	invalidateProjectsCache(userId);
 
-	if (!response.ok) {
-		throw new BackendError("INTERNAL_ERROR", {
-			details: "Failed to fetch Jira project",
+	return getJiraUserProjects(c);
+};
+
+export const updateProjectInCache = (
+	userId: string,
+	cloudId: string,
+	projectId: string,
+	// biome-ignore lint/suspicious/noExplicitAny: <explanation>
+	projectData: any,
+) => {
+	const cacheKey = `jira:projects:${userId}`;
+	// biome-ignore lint/suspicious/noExplicitAny: <explanation>
+	const cachedData: any = cache.get(cacheKey);
+
+	if (cachedData) {
+		const updatedSites = cachedData.sites.map((site) => {
+			if (site.cloudId === cloudId) {
+				const updatedProjects = site.projects.map((project) =>
+					project.id === projectId ? { ...project, ...projectData } : project,
+				);
+				return { ...site, projects: updatedProjects };
+			}
+			return site;
 		});
+
+		cache.set(cacheKey, { ...cachedData, sites: updatedSites }, 300);
 	}
-
-	const data = await response.json();
-
-	return c.json({
-		success: true,
-		message: "Successfully retrieved Jira project",
-		data,
-	});
 };
 
 export const getJiraProjectIssues = async (c: Context) => {
@@ -227,72 +337,148 @@ export const getJiraProjectIssues = async (c: Context) => {
 		});
 	}
 
-	const searchJql = `project=${projectId}`;
+	const decodedToken = jwtDecode(token.replace("Bearer ", ""));
+	const userId = decodedToken.sub;
+	const projectsCacheKey = `jira:projects:${userId}`;
+	const projectsCache = cache.get(projectsCacheKey);
 
-	const response = await fetch(
-		`https://api.atlassian.com/ex/jira/rest/api/latest/search?jql=${encodeURIComponent(searchJql)}`,
-		{
-			method: "GET",
-			headers: {
-				Authorization: token,
-				Accept: "application/json",
-			},
-		},
+	if (!projectsCache) {
+		throw new BackendError("NOT_FOUND", {
+			details: "Projects data not found. Please fetch projects first.",
+		});
+	}
+
+	const cloudSite = projectsCache.sites[0];
+	const cloudId = cloudSite.cloudId;
+	const project = cloudSite.projects.find(
+		(p) => p.id === projectId || p.key === projectId,
 	);
 
-	if (!response.ok) {
-		throw new BackendError("INTERNAL_ERROR", {
-			details: "Failed to fetch project issues",
+	if (!project) {
+		throw new BackendError("NOT_FOUND", {
+			details: "Project not found",
 		});
 	}
 
-	const data = await response.json();
+	const projectKey = project.key;
 
-	return c.json({
-		success: true,
-		message: "Successfully retrieved project issues",
-		data,
-	});
-};
+	const issuesCacheKey = `jira:issues:${cloudId}:${projectKey}`;
+	const cachedIssues = cache.get(issuesCacheKey);
 
-export const getJiraIssueByID = async (c: Context) => {
-	const token = c.req.header("Authorization");
-	const issueId = c.req.param("id");
-
-	if (!token) {
-		throw new BackendError("UNAUTHORIZED", {
-			details: "Missing Authorization header",
+	if (cachedIssues) {
+		return c.json({
+			success: true,
+			message: "Successfully retrieved project issues from cache",
+			data: cachedIssues,
+			source: "cache",
 		});
 	}
 
-	if (!issueId) {
-		throw new BackendError("BAD_REQUEST", {
-			details: "Missing issue ID",
+	try {
+		let startAt = 0;
+		const maxResults = 50;
+		let allIssues = [];
+		let total = null;
+
+		do {
+			const jql = encodeURIComponent(
+				`project = "${projectKey}" ORDER BY created DESC`,
+			);
+			const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search?jql=${jql}&startAt=${startAt}&maxResults=${maxResults}`;
+
+			const response = await fetch(url, {
+				method: "GET",
+				headers: {
+					Authorization: token,
+					Accept: "application/json",
+				},
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new BackendError("INTERNAL_ERROR", {
+					details: `Failed to fetch project issues: ${JSON.stringify(errorData)}`,
+				});
+			}
+
+			const data = await response.json();
+
+			if (total === null) {
+				total = data.total;
+			}
+
+			if (data.issues && Array.isArray(data.issues)) {
+				allIssues = [...allIssues, ...data.issues];
+			}
+
+			startAt += maxResults;
+		} while (startAt < total);
+
+		const issuesData = {
+			projectKey,
+			projectName: project.name,
+			cloudId,
+			total: allIssues.length,
+			issues: allIssues.map((issue) => ({
+				id: issue.id,
+				key: issue.key,
+				summary: issue.fields?.summary || "",
+				status: issue.fields?.status
+					? {
+							name: issue.fields.status.name,
+							category: issue.fields.status.statusCategory?.name || "",
+							color: issue.fields.status.statusCategory?.colorName || "",
+						}
+					: null,
+				priority: issue.fields?.priority
+					? {
+							name: issue.fields.priority.name,
+							iconUrl: issue.fields.priority.iconUrl,
+						}
+					: null,
+				assignee: issue.fields?.assignee
+					? {
+							accountId: issue.fields.assignee.accountId,
+							displayName: issue.fields.assignee.displayName,
+							email: issue.fields.assignee.emailAddress,
+							avatarUrl: issue.fields.assignee.avatarUrls?.["48x48"],
+						}
+					: null,
+				created: issue.fields?.created,
+				updated: issue.fields?.updated,
+				issuetype: issue.fields?.issuetype
+					? {
+							name: issue.fields.issuetype.name,
+							iconUrl: issue.fields.issuetype.iconUrl,
+							subtask: issue.fields.issuetype.subtask,
+						}
+					: null,
+			})),
+			lastUpdated: new Date().toISOString(),
+		};
+
+		cache.set(issuesCacheKey, issuesData, 300);
+
+		return c.json({
+			success: true,
+			message: "Successfully retrieved project issues",
+			data: issuesData,
+			source: "api",
 		});
+	} catch (error) {
+		console.error("Error fetching issues:", error);
+
+		const staleCache = cache.get(issuesCacheKey);
+		if (staleCache) {
+			return c.json({
+				success: true,
+				message: "Retrieved project issues from stale cache due to API error",
+				data: staleCache,
+				source: "stale_cache",
+				error: error.message,
+			});
+		}
+
+		throw error;
 	}
-
-	const response = await fetch(
-		`https://api.atlassian.com/ex/jira/rest/api/latest/issue/${issueId}`,
-		{
-			method: "GET",
-			headers: {
-				Authorization: token,
-				Accept: "application/json",
-			},
-		},
-	);
-
-	if (!response.ok) {
-		throw new BackendError("INTERNAL_ERROR", {
-			details: "Failed to fetch issue",
-		});
-	}
-
-	const data = await response.json();
-
-	return c.json({
-		success: true,
-		message: "Successfully retrieved issue",
-		data,
-	});
 };
