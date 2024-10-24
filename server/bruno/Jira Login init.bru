@@ -5,9 +5,13 @@ meta {
 }
 
 post {
-  url: {{baseUrl}}/auth/jira/signup
+  url: {{baseUrl}}/auth/jira/signup?r=1
   body: json
   auth: none
+}
+
+params:query {
+  r: 1
 }
 
 body:json {

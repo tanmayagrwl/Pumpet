@@ -1,6 +1,7 @@
 import type { Context } from "hono";
-import { ulid } from "ulid";
-import { cache } from "../db/cache";
+import { setCookie } from "hono/cookie";
+import db from "../db/db";
+import type { userType } from "../types/user";
 import ENV from "../utils/env";
 import { BackendError } from "../utils/errors";
 
@@ -8,6 +9,7 @@ const config = {
 	clientId: ENV.JIRA_CLIENT_ID,
 	clientSecret: ENV.JIRA_CLIENT_SECRET,
 	redirectUri: "http://localhost:5050/api/v1/auth/jira/callback",
+
 	scope: [
 		"read:jira-user",
 		"read:jira-work",
@@ -19,8 +21,9 @@ const config = {
 };
 
 export const handleJiraSignup = async (c: Context) => {
+	const redirectParam = c.req.query("r");
 	const scopes = config.scope.join(" ");
-	const authUrl = `https://auth.atlassian.com/authorize?audience=api.atlassian.com&client_id=${config.clientId}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(config.redirectUri)}&response_type=code&prompt=consent`;
+	const authUrl = `https://auth.atlassian.com/authorize?audience=api.atlassian.com&client_id=${config.clientId}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(config.redirectUri)}&response_type=code&prompt=consent&state=${redirectParam === "1" ? "redirect" : ""}`;
 
 	console.log(authUrl);
 
@@ -33,6 +36,7 @@ export const handleJiraSignup = async (c: Context) => {
 
 export const handleJiraCallback = async (c: Context) => {
 	const code = c.req.query("code");
+	const state = c.req.query("state");
 
 	if (!code) {
 		throw new BackendError("BAD_REQUEST", {
@@ -61,6 +65,12 @@ export const handleJiraCallback = async (c: Context) => {
 	}
 
 	const data = await response.json();
+
+	if (state === "redirect") {
+		setCookie(c, "jira_access_token", data.access_token);
+		setCookie(c, "jira_refresh_token", data.refresh_token);
+		return c.redirect("http://localhost:3000");
+	}
 
 	return c.json({
 		success: true,
@@ -99,8 +109,6 @@ export const getJiraUser = async (c: Context) => {
 		},
 	});
 
-	console.log(response);
-
 	if (response.status !== 200) {
 		throw new BackendError("INTERNAL_ERROR", {
 			details: "Failed to fetch Jira user profile",
@@ -109,7 +117,13 @@ export const getJiraUser = async (c: Context) => {
 
 	const data = await response.json();
 
-	console.log(data);
+	const result = await (await db()).collection("users").insertOne(data);
+
+	if (!result.insertedId) {
+		throw new BackendError("INTERNAL_ERROR", {
+			message: "Error saving user data",
+		});
+	}
 
 	return c.json({
 		success: true,
@@ -118,7 +132,167 @@ export const getJiraUser = async (c: Context) => {
 	});
 };
 
-/*
-eyJraWQiOiJhdXRoLmF0bGFzc2lhbi5jb20tQUNDRVNTLWE5Njg0YTZlLTY4MjctNGQ1Yi05MzhjLWJkOTZjYzBiOTk0ZCIsImFsZyI6IlJTMjU2In0.eyJqdGkiOiJmYjEzYjNjMi1iNTg2LTRkYWItYjgyZC03MWMzM2IyNjExN2IiLCJzdWIiOiI3MTIwMjA6YTkwOTIyMWYtNWU0NS00Y2U2LWJkZDQtZmM4ZGVmNjZjOGEzIiwibmJmIjoxNzI5NzY5NTQ2LCJpc3MiOiJodHRwczovL2F1dGguYXRsYXNzaWFuLmNvbSIsImlhdCI6MTcyOTc2OTU0NiwiZXhwIjoxNzI5NzczMTQ2LCJhdWQiOiJ4U2dxT1g5MTBxYlRpNlJrV0ZMWHpEd0pOT0x1dXppcyIsImh0dHBzOi8vYXRsYXNzaWFuLmNvbS9zeXN0ZW1BY2NvdW50SWQiOiI3MTIwMjA6NjI3OGRhZGItNTExOS00MDg3LWFkOWYtODdhYzk2ZGM4ZWY3Iiwic2NvcGUiOiJtYW5hZ2U6amlyYS1wcm9qZWN0IHJlYWQ6amlyYS13b3JrIG1hbmFnZTpqaXJhLXdlYmhvb2sgcmVhZDpqaXJhLXVzZXIiLCJjbGllbnRfaWQiOiJ4U2dxT1g5MTBxYlRpNlJrV0ZMWHpEd0pOT0x1dXppcyIsImh0dHBzOi8vaWQuYXRsYXNzaWFuLmNvbS9zZXNzaW9uX2lkIjoiMjliYmI0ZjQtZTUyYi00NzkxLWIwYzQtMTU0Y2FlZmVkNDQ3IiwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tL3N5c3RlbUFjY291bnRFbWFpbCI6IjgwZjA4MTllLTRlZDEtNDM0OS04OWI3LWYyZTQ5ZDFlYWY4MUBjb25uZWN0LmF0bGFzc2lhbi5jb20iLCJodHRwczovL2lkLmF0bGFzc2lhbi5jb20vYXRsX3Rva2VuX3R5cGUiOiJBQ0NFU1MiLCJodHRwczovL2F0bGFzc2lhbi5jb20vZmlyc3RQYXJ0eSI6ZmFsc2UsImh0dHBzOi8vYXRsYXNzaWFuLmNvbS92ZXJpZmllZCI6dHJ1ZSwiaHR0cHM6Ly9pZC5hdGxhc3NpYW4uY29tL3VqdCI6Ijg1NjJhYmU0LWQ4MDktNGVmMS1hNGJlLWE5M2ZhZDQ4NTg1ZSIsImh0dHBzOi8vaWQuYXRsYXNzaWFuLmNvbS9wcm9jZXNzUmVnaW9uIjoidXMtZWFzdC0xIiwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tL29hdXRoQ2xpZW50SWQiOiJ4U2dxT1g5MTBxYlRpNlJrV0ZMWHpEd0pOT0x1dXppcyIsImh0dHBzOi8vYXRsYXNzaWFuLmNvbS9lbWFpbERvbWFpbiI6ImdtYWlsLmNvbSIsImh0dHBzOi8vYXRsYXNzaWFuLmNvbS8zbG8iOnRydWUsImh0dHBzOi8vaWQuYXRsYXNzaWFuLmNvbS92ZXJpZmllZCI6dHJ1ZSwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tL3N5c3RlbUFjY291bnRFbWFpbERvbWFpbiI6ImNvbm5lY3QuYXRsYXNzaWFuLmNvbSJ9.PnLyKuZWqBa501VJjiIt2R0GrXdQbSlnsLZSeKNHln_5Yl4fiPWtRJ-jtaahkf7YaEyT6YxgxpV1IK3Hu7Nm6DMKB8lFEUT-eBlftqb857XOMa3qkdGSUUGbY3ftZnebonKrdC0ZVo9jjc3BmldkcRZieA52HM0eGeHudTKs7G6ycRp6LF518NWAoxH1nDievMhLcOqHCTxHBReVi7sD7MbcAgxtOXJtBfyzk9ts5CiwxW77rINUdikxmtf35lTPWE5i0R8Vk6jVPnjeSzfJSw6-AbbQ4woZ9z79YKCLHF0Q2WLWaPgDocedVchMaoV7taVv5O9DdCc-RvtgZ9z3eA"
+export const getJiraUserProjects = async (c: Context) => {
+	const token = c.req.header("Authorization");
 
-*/
+	if (!token) {
+		throw new BackendError("UNAUTHORIZED", {
+			details: "Missing Authorization header",
+		});
+	}
+
+	const response = await fetch(
+		"https://api.atlassian.com/ex/jira/rest/api/latest/project",
+		{
+			method: "GET",
+			headers: {
+				Authorization: token,
+				Accept: "application/json",
+			},
+		},
+	);
+
+	console.log(response);
+
+	if (!response.ok) {
+		throw new BackendError("INTERNAL_ERROR", {
+			details: "Failed to fetch Jira projects",
+		});
+	}
+
+	const data = await response.json();
+
+	return c.json({
+		success: true,
+		message: "Successfully retrieved Jira projects",
+		data,
+	});
+};
+
+export const getJiraProjectByID = async (c: Context) => {
+	const token = c.req.header("Authorization");
+	const projectId = c.req.param("id");
+
+	if (!token) {
+		throw new BackendError("UNAUTHORIZED", {
+			details: "Missing Authorization header",
+		});
+	}
+
+	if (!projectId) {
+		throw new BackendError("BAD_REQUEST", {
+			details: "Missing project ID",
+		});
+	}
+
+	const response = await fetch(
+		`https://api.atlassian.com/ex/jira/rest/api/latest/project/${projectId}`,
+		{
+			method: "GET",
+			headers: {
+				Authorization: token,
+				Accept: "application/json",
+			},
+		},
+	);
+
+	if (!response.ok) {
+		throw new BackendError("INTERNAL_ERROR", {
+			details: "Failed to fetch Jira project",
+		});
+	}
+
+	const data = await response.json();
+
+	return c.json({
+		success: true,
+		message: "Successfully retrieved Jira project",
+		data,
+	});
+};
+
+export const getJiraProjectIssues = async (c: Context) => {
+	const token = c.req.header("Authorization");
+	const projectId = c.req.param("id");
+
+	if (!token) {
+		throw new BackendError("UNAUTHORIZED", {
+			details: "Missing Authorization header",
+		});
+	}
+
+	if (!projectId) {
+		throw new BackendError("BAD_REQUEST", {
+			details: "Missing project ID",
+		});
+	}
+
+	const searchJql = `project=${projectId}`;
+
+	const response = await fetch(
+		`https://api.atlassian.com/ex/jira/rest/api/latest/search?jql=${encodeURIComponent(searchJql)}`,
+		{
+			method: "GET",
+			headers: {
+				Authorization: token,
+				Accept: "application/json",
+			},
+		},
+	);
+
+	if (!response.ok) {
+		throw new BackendError("INTERNAL_ERROR", {
+			details: "Failed to fetch project issues",
+		});
+	}
+
+	const data = await response.json();
+
+	return c.json({
+		success: true,
+		message: "Successfully retrieved project issues",
+		data,
+	});
+};
+
+export const getJiraIssueByID = async (c: Context) => {
+	const token = c.req.header("Authorization");
+	const issueId = c.req.param("id");
+
+	if (!token) {
+		throw new BackendError("UNAUTHORIZED", {
+			details: "Missing Authorization header",
+		});
+	}
+
+	if (!issueId) {
+		throw new BackendError("BAD_REQUEST", {
+			details: "Missing issue ID",
+		});
+	}
+
+	const response = await fetch(
+		`https://api.atlassian.com/ex/jira/rest/api/latest/issue/${issueId}`,
+		{
+			method: "GET",
+			headers: {
+				Authorization: token,
+				Accept: "application/json",
+			},
+		},
+	);
+
+	if (!response.ok) {
+		throw new BackendError("INTERNAL_ERROR", {
+			details: "Failed to fetch issue",
+		});
+	}
+
+	const data = await response.json();
+
+	return c.json({
+		success: true,
+		message: "Successfully retrieved issue",
+		data,
+	});
+};
