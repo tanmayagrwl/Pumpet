@@ -2,7 +2,7 @@
 
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Command,
   CommandEmpty,
@@ -54,7 +54,6 @@ function SiteHeader() {
     fetchData();
   }, []);
 
-  console.log("this is organization", organization);
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
   const [admin, setAdmin] = useState<boolean>(false);
