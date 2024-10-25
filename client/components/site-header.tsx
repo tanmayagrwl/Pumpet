@@ -1,7 +1,8 @@
 "use client";
+
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import React, { use, useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Command,
   CommandEmpty,
@@ -29,33 +30,45 @@ import { Label } from "./ui/label";
 import { Switch } from "./ui/switch";
 import Link from "next/link";
 import { getProjects } from "@/lib/actions/get-projects";
+import { useRouter } from "next/navigation";
 
 function SiteHeader() {
   interface Organization {
     value: string;
     label: string;
   }
-  
+
   const [organization, setOrganization] = useState<Organization[]>([]);
 
-useEffect(() => {
-  const fetchData = async () => {
-    const data = await getProjects();
-    console.log("data from data", data);
-    const projects = data.data.sites[0].projects;
-    const orgData = projects.map((project: { key: any; name: any; }) => ({
-      value: project.key,
-      label: project.name,
-    }));
-    setOrganization(orgData);
-  };
-  fetchData();
-}, []);
+  useEffect(() => {
+    const fetchData = async () => {
+      const data = await getProjects();
+      console.log("data from data", data);
+      const projects = data.data.sites[0].projects;
+      const orgData = projects.map((project: { key: any; name: any }) => ({
+        value: project.key,
+        label: project.name,
+      }));
+      setOrganization(orgData);
+    };
+    fetchData();
+  }, []);
 
   console.log("this is organization", organization);
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
   const [admin, setAdmin] = useState<boolean>(false);
+  const router = useRouter();
+
+  const handleLogout = () => {
+    for (const c of document.cookie.split(";")) {
+      document.cookie = c
+        .replace(/^ +/, "")
+        .replace(/=.*/, `=;expires=${new Date().toUTCString()};path=/`);
+    }
+    router.push("/");
+  };
+
   return (
     <div className="border border-b-gray-300 py-6 flex justify-between px-4">
       <div className="flex gap-x-4">
@@ -66,13 +79,12 @@ useEffect(() => {
           <PopoverTrigger asChild>
             <Button
               variant="outline"
-              role="combobox"
               aria-expanded={open}
               className="w-[200px] justify-between"
             >
               {value
                 ? organization.find(
-                    (organization) => organization.value === value
+                    (organization) => organization.value === value,
                   )?.label
                 : "Select organization..."}
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -98,7 +110,7 @@ useEffect(() => {
                           "mr-2 h-4 w-4",
                           value === organization.value
                             ? "opacity-100"
-                            : "opacity-0"
+                            : "opacity-0",
                         )}
                       />
                       {organization.label}
@@ -109,9 +121,7 @@ useEffect(() => {
             </Command>
           </PopoverContent>
         </Popover>
-        <div></div>
       </div>
-      {/* 2nd half */}
 
       <div className="flex gap-x-8 items-center">
         {admin && <div>Analytics</div>}
@@ -119,9 +129,8 @@ useEffect(() => {
         <Link href={"/dashboard/activity"}>Activity</Link>
         <Link href={"/dashboard/leaderboard"}>Leaderboard</Link>
 
-
         <div className="flex items-center gap-x-3">
-        <div className="font-bold">Tanmay Agrawal</div>
+          <div className="font-bold">Tanmay Agrawal</div>
           <DropdownMenu>
             <DropdownMenuTrigger>
               <Avatar>
@@ -135,17 +144,17 @@ useEffect(() => {
               <DropdownMenuItem className="bg-primary/50">
                 50 Pump Coins
               </DropdownMenuItem>
+              <DropdownMenuItem>Profile</DropdownMenuItem>
               <DropdownMenuItem>
-                Profile
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Switch 
-                checked={admin}
-                onCheckedChange={()=>setAdmin(!admin)}
+                <Switch
+                  checked={admin}
+                  onCheckedChange={() => setAdmin(!admin)}
                 />
                 <Label>Admin</Label>
               </DropdownMenuItem>
-              <DropdownMenuItem>Log Out</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleLogout}>
+                Log Out
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

@@ -1,28 +1,36 @@
 "use client";
 
-import React, { use, useEffect } from "react";
+import React, { useEffect } from "react";
 import { BackgroundLines } from "@/components/ui/background-lines";
 import { Button } from "../ui/button";
 import { authenticate } from "@/lib/actions/user-auth";
 import { useRouter } from "next/navigation";
 import { getUserProfile } from "@/lib/actions/get-profile";
-import Link from "next/link";
 
 export function Landing() {
   const router = useRouter();
   const onSubmit = async () => {
-    const authResponse = await authenticate();
-    authResponse.data.authUrl && router.push(authResponse.data.authUrl);
-    console.log("this is new console", authResponse);
+    try {
+      const authResponse = await authenticate();
+      if (authResponse?.data?.authUrl) {
+        window.location.href = authResponse.data.authUrl;
+      }
+      console.log("this is new console", authResponse);
+    } catch (error) {
+      console.error("Authentication error:", error);
+    }
   };
 
   useEffect(() => {
     const fetchData = async () => {
       const data = await getUserProfile();
-      console.log("data from effect hook", data);
+
+      if (data?.success) {
+        router.push("/dashboard");
+      }
     };
     fetchData();
-  }, []);
+  }, [router]);
 
   return (
     <BackgroundLines className="flex items-center justify-center w-full h-screen flex-col px-4">
@@ -42,7 +50,6 @@ export function Landing() {
       >
         Login with Jira
       </Button>
-      <Link href={"/dashboard"} className="z-10 -mt-5">.</Link>
     </BackgroundLines>
   );
 }
