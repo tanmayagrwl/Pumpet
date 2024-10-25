@@ -1,4 +1,5 @@
-import React from "react";
+"use client"
+import React, { useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -7,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { getIssues } from "@/lib/actions/get-issues";
 
 interface TicketProps {
   tickets: {
@@ -20,7 +22,16 @@ interface TicketProps {
   }[];
 }
 
+
 const Ticket: React.FC<TicketProps> = ({ tickets }) => {
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const data = await getIssues();
+      console.log("data from effect hook", data);
+    };
+    fetchData();
+  });
   if (!tickets.length) {
     return <p>No tickets available</p>;
   }

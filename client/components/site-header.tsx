@@ -1,7 +1,7 @@
 "use client";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import React, { use, useState } from "react";
+import React, { use, useEffect, useState } from "react";
 import {
   Command,
   CommandEmpty,
@@ -28,33 +28,34 @@ import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { Switch } from "./ui/switch";
 import Link from "next/link";
+import { getProjects } from "@/lib/actions/get-projects";
 
-const organization = [
-  {
-    value: "Emendo",
-    label: "Emendo",
-  },
-  {
-    value: "Google",
-    label: "Google",
-  },
-  {
-    value: "Microsoft",
-    label: "Microsoft",
-  },
-  {
-    value: "remix",
-    label: "Remix",
-  },
-  {
-    value: "astro",
-    label: "Astro",
-  },
-];
 function SiteHeader() {
+  interface Organization {
+    value: string;
+    label: string;
+  }
+  
+  const [organization, setOrganization] = useState<Organization[]>([]);
+
+useEffect(() => {
+  const fetchData = async () => {
+    const data = await getProjects();
+    console.log("data from data", data);
+    const projects = data.data.sites[0].projects;
+    const orgData = projects.map((project: { key: any; name: any; }) => ({
+      value: project.key,
+      label: project.name,
+    }));
+    setOrganization(orgData);
+  };
+  fetchData();
+}, []);
+
+  console.log("this is organization", organization);
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
-  const [admin, setAdmin] =  useState<boolean>(false)
+  const [admin, setAdmin] = useState<boolean>(false);
   return (
     <div className="border border-b-gray-300 py-6 flex justify-between px-4">
       <div className="flex gap-x-4">

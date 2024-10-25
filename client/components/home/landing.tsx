@@ -6,10 +6,9 @@ import { Button } from "../ui/button";
 import { authenticate } from "@/lib/actions/user-auth";
 import { useRouter } from "next/navigation";
 import { getUserProfile } from "@/lib/actions/get-profile";
-import { get } from "http";
+import Link from "next/link";
 
 export function Landing() {
-
   const router = useRouter();
   const onSubmit = async () => {
     const authResponse = await authenticate();
@@ -43,6 +42,7 @@ export function Landing() {
       >
         Login with Jira
       </Button>
+      <Link href={"/dashboard"} className="z-10 -mt-5">.</Link>
     </BackgroundLines>
   );
 }
