@@ -31,6 +31,7 @@ import { Switch } from "./ui/switch";
 import Link from "next/link";
 import { getProjects } from "@/lib/actions/get-projects";
 import { useRouter } from "next/navigation";
+import axios from "axios";
 
 function SiteHeader() {
   interface Organization {
@@ -39,6 +40,7 @@ function SiteHeader() {
   }
 
   const [organization, setOrganization] = useState<Organization[]>([]);
+  const [name, setName] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -52,6 +54,24 @@ function SiteHeader() {
       setOrganization(orgData);
     };
     fetchData();
+
+    // const fetchProfile = async () => {
+    //   try {
+    //     const response = await axios.get(
+    //       "http://localhost:5050/api/v1/jira/profile",
+    //       {
+    //         headers: {
+    //           Authorization: `Bearer ${localStorage.getItem("token")}`,
+    //         },
+    //       },
+    //     );
+    //     const data = await response.data;
+    //     setName(data.name);
+    //   } catch (error) {
+    //     console.error("Error fetching profile:", error);
+    //   }
+    // };
+    // fetchProfile();
   }, []);
 
   const [open, setOpen] = useState(false);
@@ -129,7 +149,7 @@ function SiteHeader() {
         <Link href={"/dashboard/leaderboard"}>Leaderboard</Link>
 
         <div className="flex items-center gap-x-3">
-          <div className="font-bold">Tanmay Agrawal</div>
+          {/* <div className="font-bold">{name}</div> */}
           <DropdownMenu>
             <DropdownMenuTrigger>
               <Avatar>

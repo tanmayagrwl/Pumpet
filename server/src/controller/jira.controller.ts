@@ -244,7 +244,7 @@ export const getJiraUserProjects = async (c: Context) => {
       lastUpdated: new Date().toISOString(),
     };
 
-    cache.set(cacheKey, responseData, 300);
+    cache.set(cacheKey, responseData, 10);
 
     return c.json({
       success: true,
@@ -318,7 +318,7 @@ export const updateProjectInCache = (
       return site;
     });
 
-    cache.set(cacheKey, { ...cachedData, sites: updatedSites }, 300);
+    cache.set(cacheKey, { ...cachedData, sites: updatedSites }, 10);
   }
 };
 
@@ -615,7 +615,7 @@ export const getJiraProjectIssues = async (c: Context) => {
       lastUpdated: new Date().toISOString(),
     };
 
-    cache.set(issuesCacheKey, issuesData, 300); // Cache for 5 minutes
+    cache.set(issuesCacheKey, issuesData, 10);
 
     return c.json({
       success: true,

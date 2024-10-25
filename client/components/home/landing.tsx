@@ -28,6 +28,8 @@ export function Landing() {
       if (data?.success) {
         router.push("/dashboard");
       }
+
+      localStorage.setItem("token", data.access_token);
     };
     fetchData();
   }, [router]);
