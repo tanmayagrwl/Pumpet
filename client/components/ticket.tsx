@@ -24,10 +24,15 @@ interface TicketProps {
 
 const Ticket: React.FC<TicketProps> = ({ tickets }) => {
   const [fetchedTickets, setFetchedTickets] = useState<TicketProps["tickets"]>([]);
-
+  const [fetchedHistory, setFetchedHistory] = useState([]);
   useEffect(() => {
     const fetchData = async () => {
       const data = await getIssues();
+      console.log(data);
+      const tickethistory = data.data.issues[0].history;
+      console.log("history", tickethistory);
+
+      // const arrayCombined;
       const mappedTickets = data.data.issues.map((issue: any) => ({
         id: issue.id,
         name: issue.key,
@@ -36,7 +41,9 @@ const Ticket: React.FC<TicketProps> = ({ tickets }) => {
         priority: issue.priority.name,
         statusColor: issue.status.color,
         priorityColor: issue.priority.iconUrl,
+
       }));
+      
       setFetchedTickets(mappedTickets);
       console.log(mappedTickets);
     };
@@ -76,14 +83,14 @@ const Ticket: React.FC<TicketProps> = ({ tickets }) => {
               </span>
             </div>
           </CardContent>
-          {/* <CardFooter className="p-4 border-t border-gray-200 flex justify-end space-x-3">
+          <CardFooter className="p-4 border-t border-gray-200 flex justify-end space-x-3">
             <button className="text-gray-600 text-sm hover:text-gray-800">
               View
             </button>
             <button className="text-gray-600 text-sm hover:text-gray-800">
               Edit
             </button>
-          </CardFooter> */}
+          </CardFooter>
         </Card>
       ))}
     </div>

@@ -123,7 +123,7 @@ function SiteHeader() {
       </div>
 
       <div className="flex gap-x-8 items-center">
-        {admin && <div>Analytics</div>}
+      {admin &&  <Link href={"/dashboard/analytics"}> Analytics</Link>}
         <Link href={"/dashboard/marketplace"}>Marketplace</Link>
         <Link href={"/dashboard/activity"}>Activity</Link>
         <Link href={"/dashboard/leaderboard"}>Leaderboard</Link>
